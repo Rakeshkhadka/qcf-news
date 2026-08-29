@@ -103,11 +103,24 @@
 * { box-sizing: border-box; }
 
 html {
-  scroll-behavior: smooth;
+  /*
+   * `auto` (instant) by default — the router scrolls to the top on every page
+   * transition and that must land immediately.  `smooth` used to be here, but
+   * it turned the reset into an animation that was easily interrupted by focus
+   * restoration or layout shifts, leaving article pages visibly scrolled down
+   * on open.
+   *
+   * Smooth scrolling is still desirable for *in-page* jumps (skip-link,
+   * heading anchors), so it is activated only when the URL resolves a :target.
+   */
+  scroll-behavior: auto;
   /* Anchored targets clear the sticky masthead instead of hiding under it. */
   scroll-padding-top: 96px;
   -webkit-text-size-adjust: 100%;
 }
+
+/* In-page anchor jumps (skip-link → #main, heading links) scroll smoothly. */
+html:has(:target) { scroll-behavior: smooth; }
 
 body {
   margin: 0;
