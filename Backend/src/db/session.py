@@ -37,7 +37,23 @@ class AsyncSession(_AsyncSession):
             await super().delete(instance)
 
 
-def _make_engine(*, pool_size: int = 10, max_overflow: int = 20):
+# Pool sizing is env-tunable because it multiplies in a way that is easy to
+# miss: every gunicorn worker imports this module AND runs db_lifespan, so a
+# worker holds TWO pools, and the host sees
+#     workers x 2 x (DB_POOL_SIZE + DB_MAX_OVERFLOW)
+# connections at full stretch.  At the previous hard-coded 10 + 20 that is 120
+# connections for 2 workers — past PostgreSQL's default max_connections of 100,
+# and roughly 5-10 MB of server memory each.  Keep the product under the
+# database's max_connections with room to spare.
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
+DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+
+
+def _make_engine(
+    *,
+    pool_size: int = DB_POOL_SIZE,
+    max_overflow: int = DB_MAX_OVERFLOW,
+):
     """Build an async engine with sensible pool defaults."""
     if os.getenv("TESTING") == "1":
         return create_async_engine(

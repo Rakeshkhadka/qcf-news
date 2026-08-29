@@ -2,7 +2,7 @@
 
 **Target origin:** `https://news.quickcelebfacts.com`
 **Topology:** Cloudflare (Universal SSL) → EC2 host nginx (Cloudflare Origin CA) → Docker containers on loopback
-**Companion docs:** [ENVIRONMENTS.md](ENVIRONMENTS.md) (what dev and prod differ on), [DEPLOYMENT_AUDIT.md](DEPLOYMENT_AUDIT.md) (the open findings this guide closes), [nginx/qcfnews.conf.example](nginx/qcfnews.conf.example) (the routing contract).
+**Companion docs:** [DEPLOY_2GB.md](DEPLOY_2GB.md) (the same deploy on a 2 GiB host, building off-server), [ENVIRONMENTS.md](ENVIRONMENTS.md) (what dev and prod differ on), [DEPLOYMENT_AUDIT.md](DEPLOYMENT_AUDIT.md) (the open findings this guide closes), [nginx/qcfnews.conf.example](nginx/qcfnews.conf.example) (the routing contract).
 
 This is a first-deploy runbook, start to finish. Every command is meant to be
 pasted. Where a step closes a finding from the audit it says so, so you can tell
@@ -127,7 +127,7 @@ starts with one password and the backend connects with another.
 
 | | Choice | Why |
 |---|---|---|
-| Instance | **t3.medium** — 2 vCPU, 4 GiB | `next build` is the binding constraint, not steady-state traffic. On a 2 GiB t3.small it OOM-kills mid-build with an unhelpful `Killed`. Steady state fits comfortably in 4 GiB: ~3 gunicorn workers, the Next standalone server, Postgres and a 128 MB Redis. |
+| Instance | **t3.medium** — 2 vCPU, 4 GiB | `next build` is the binding constraint, not steady-state traffic. On a 2 GiB t3.small it OOM-kills mid-build with an unhelpful `Killed`. Steady state fits comfortably in 4 GiB: ~3 gunicorn workers, the Next standalone server, Postgres and a 128 MB Redis. **Stuck with 2 GiB?** The runtime does fit — it is only the build that does not. [DEPLOY_2GB.md](DEPLOY_2GB.md) builds the images on your laptop and ships them in. |
 | Storage | **gp3, 30 GiB** | Images and layers are ~3 GiB; the rest is media uploads, Postgres and logs. gp3 is cheaper than gp2 at the same size and gives 3000 IOPS baseline. |
 | AMI | **Ubuntu Server 24.04 LTS** | Ships nginx 1.24.0 and a current OpenSSL. 22.04's nginx 1.18 is from April 2020 and is what the audit flags in P2-11. Note that **1.24 still predates `http2 on;`** (that needs ≥ 1.25.1), so the config below keeps the `listen 443 ssl http2;` spelling. |
 | Metadata | **IMDSv2 required** | One-click in the launch wizard; closes the classic SSRF-to-credentials path. |

@@ -1,0 +1,118 @@
+# =============================================================================
+# QCF News — low-memory overlay  (2 GiB host)
+# =============================================================================
+# Layered ON TOP of the production overlay, for a small shared box:
+#
+#   make ENV=prod LOWMEM=1 up
+#     ≡ docker compose --env-file .env.production \
+#         -f docker-compose.yml -f docker-compose.prod.yml \
+#         -f docker-compose.lowmem.yml up -d
+#
+# It changes three kinds of thing:
+#
+#   1. Hard memory ceilings on every service.  These are NOT reservations — the
+#      services normally sit well under them.  They exist so that a spike (an
+#      image upload is the realistic one) kills ONE container, which restarts in
+#      seconds, instead of inviting the kernel OOM killer to pick a victim
+#      anywhere on the host.  On a box that also runs MySQL, that distinction is
+#      the difference between a blip and an unrelated outage.
+#
+#   2. Smaller working sets: fewer gunicorn workers, a much smaller Postgres,
+#      a smaller Redis, a capped Node heap.
+#
+#   3. Pinned image names, because this host cannot build its own images.
+#      `next build` alone wants ~2 GiB. Images are built on your laptop and
+#      shipped in with scripts/ship-images.sh; that also keeps the ~4-6 GiB of
+#      intermediate build layers off an 8 GiB disk. The two concerns live in one
+#      file because on a box this size they always travel together.
+#
+#   4. A tight database connection pool.  See the note in
+#      Backend/src/db/session.py — pool size multiplies by TWO pools per worker,
+#      so the naive default reaches 120 connections at 2 workers.  Here it is
+#      2 workers x 2 pools x (3 + 2) = 20, against max_connections=40 below.
+#
+# Expected steady state, measured against the limits below:
+#
+#     backend   ~330 M   (limit 420 M)
+#     frontend  ~170 M   (limit 260 M)
+#     postgres  ~130 M   (limit 220 M)
+#     redis      ~60 M   (limit  96 M)
+#     ────────────────
+#     ~690 M actual, ~1.0 G of ceilings
+#
+# Delete this file from the chain the day the box gets more RAM; nothing else
+# needs to change.
+# =============================================================================
+
+services:
+  db:
+    # PostgreSQL's defaults assume it owns the machine.  It does not.
+    #   shared_buffers   128MB -> 64MB
+    #   max_connections  100   -> 40   (the app needs 20; see above)
+    #   work_mem         4MB   -> 2MB  (per sort/hash node, so it multiplies)
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=40
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - effective_cache_size=256MB
+      - -c
+      - wal_buffers=2MB
+      - -c
+      - max_worker_processes=2
+      - -c
+      - max_parallel_workers=2
+      - -c
+      - max_parallel_workers_per_gather=0
+    mem_limit: 220m
+    memswap_limit: 320m
+
+  redis:
+    # Only rate-limit counters live here — 48 MB is generous for that.
+    command: >
+      redis-server
+      --maxmemory 48mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    mem_limit: 96m
+    memswap_limit: 128m
+
+  backend:
+    # Pinned so `docker save` / `docker load` and compose agree on a name.
+    # Compose only builds when the tagged image is ABSENT (or you pass
+    # --build), so with the image loaded, `up` starts it without touching the
+    # builder — which is the point: this host cannot run `next build`.
+    image: qcfnews/backend:latest
+    environment:
+      # 2 workers, not 4.  Each is async, so a Cloudflare-cached news site is
+      # nowhere near saturating them; the second exists so one slow request
+      # does not block the site.
+      BACKEND_WORKERS: "2"
+      # 2 workers x 2 pools x (3 + 2) = 20 connections, under max_connections=40.
+      DB_POOL_SIZE: "3"
+      DB_MAX_OVERFLOW: "2"
+      # Pillow decodes the whole source image into a bitmap and then encodes six
+      # variants (AVIF + WebP at 400/800/1200w).  Peak is driven by pixel count,
+      # which the file-size cap bounds in practice — see .env.production.
+      MALLOC_ARENA_MAX: "2"
+    # Upload spikes are what this ceiling is for.  A 5 MB source costs roughly
+    # 120-200 M above baseline while its variants are generated; the container
+    # is killed and restarted rather than the host running out.
+    mem_limit: 420m
+    memswap_limit: 640m
+
+  frontend:
+    image: qcfnews/frontend:latest
+    environment:
+      # The Next standalone server is mostly idle memory; capping the V8 heap
+      # keeps a leak or a big SSR render from growing without bound.
+      NODE_OPTIONS: "--max-old-space-size=200"
+    mem_limit: 260m
+    memswap_limit: 384m

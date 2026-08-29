@@ -34,6 +34,15 @@ else
   $(error ENV must be 'dev' or 'prod' (got '$(ENV)'))
 endif
 
+# LOWMEM=1 appends the small-host overlay: memory ceilings, fewer workers, a
+# smaller Postgres and Redis, and pinned image names so nothing is built here.
+# Intended for the 2 GiB production box — see docker-compose.lowmem.yml.
+#
+#   make ENV=prod LOWMEM=1 up
+ifdef LOWMEM
+  COMPOSE_FILES += -f docker-compose.lowmem.yml
+endif
+
 DC := docker compose --env-file $(ENV_FILE) $(COMPOSE_FILES)
 
 # Every target that talks to Docker depends on this, so a missing env file is
