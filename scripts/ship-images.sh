@@ -42,7 +42,7 @@ cd "$(dirname "$0")/.."
 
 echo "==> checking architectures match"
 LOCAL_ARCH=$(docker version --format '{{.Server.Arch}}')
-REMOTE_ARCH=$("${SSH[@]}" "docker version --format '{{.Server.Arch}}'")
+REMOTE_ARCH=$("${SSH[@]}" "sudo docker version --format '{{.Server.Arch}}'")
 if [ "$LOCAL_ARCH" != "$REMOTE_ARCH" ]; then
   echo "error: local=$LOCAL_ARCH remote=$REMOTE_ARCH"
   echo "       A mismatch loads fine and then fails at runtime with"
@@ -65,10 +65,10 @@ echo "==> building"
 "${COMPOSE[@]}" build
 
 echo "==> shipping $(printf '%s ' "${IMAGES[@]}")"
-docker save "${IMAGES[@]}" | gzip -1 | "${SSH[@]}" 'gunzip | docker load'
+docker save "${IMAGES[@]}" | gzip -1 | "${SSH[@]}" 'gunzip | sudo docker load'
 
 echo "==> loaded on the server:"
-"${SSH[@]}" "docker images --filter=reference='qcfnews/*' --format '    {{.Repository}}:{{.Tag}}  {{.Size}}'"
+"${SSH[@]}" "sudo docker images --filter=reference='qcfnews/*' --format '    {{.Repository}}:{{.Tag}}  {{.Size}}'"
 
 cat <<'NEXT'
 

@@ -65,10 +65,8 @@ export function proxy(request: NextRequest) {
 
   const csp = [
     `default-src 'self'`,
-    // Scripts: nonce-based.  'strict-dynamic' lets a trusted script load
-    // further scripts without listing every CDN.  Dev needs 'unsafe-eval'
-    // for React Fast Refresh / Next.js HMR.
-    `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ''} 'strict-dynamic'`,
+    // Scripts: 'self' 'unsafe-inline' 'unsafe-eval' for Next.js prerendered scripts & dynamic chunk loading
+    `script-src 'self' 'unsafe-inline' 'unsafe-eval'`,
     // Styles: 'unsafe-inline' is needed because Next
     // injects style tags at runtime that cannot carry a nonce today.
     `style-src 'self' 'unsafe-inline'`,

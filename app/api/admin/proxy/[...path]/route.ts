@@ -24,8 +24,15 @@ async function proxyRequest(request: NextRequest, params: { path: string[] }) {
     );
   }
 
-  // Rebuild the target URL: /api/admin/proxy/articles/42 → /api/v1/articles/42
-  const subPath = params.path.join('/');
+  // Rebuild the target URL: /api/admin/proxy/categories → /api/v1/categories/
+  let subPath = params.path.join('/');
+  
+  // FastAPI base collection endpoints expect a trailing slash to avoid 307 redirects
+  const collectionRoutes = ['categories', 'articles', 'roles', 'users', 'newsletter'];
+  if (collectionRoutes.includes(subPath)) {
+    subPath += '/';
+  }
+
   const url = new URL(`${API_INTERNAL_BASE}/${subPath}`);
 
   // Preserve the original query string
@@ -46,16 +53,17 @@ async function proxyRequest(request: NextRequest, params: { path: string[] }) {
     headers['Content-Type'] = contentType;
   }
 
-  // For multipart, forward the raw body; for JSON, same.
-  const body =
-    request.method !== 'GET' && request.method !== 'HEAD'
-      ? await request.arrayBuffer()
-      : undefined;
+  // Safely clone the ArrayBuffer so Node fetch doesn't encounter a detached ArrayBuffer
+  let bodyBuffer: Buffer | undefined = undefined;
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    const ab = await request.arrayBuffer();
+    bodyBuffer = Buffer.from(ab.slice(0));
+  }
 
   const upstream = await fetch(url.toString(), {
     method: request.method,
     headers,
-    body: body ? Buffer.from(body) : undefined,
+    body: bodyBuffer,
   });
 
   // Stream the upstream response back to the client

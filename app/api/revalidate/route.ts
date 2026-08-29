@@ -114,9 +114,6 @@ export async function POST(request: NextRequest) {
     }
 
     for (const tag of tags) {
-      // 'max' expires the tag outright rather than reviving it under some
-      // shorter profile — an edited article must not keep serving the old
-      // body for another cache lifetime.
       revalidateTag(tag, 'max');
     }
 
