@@ -1,0 +1,88 @@
+# =============================================================================
+# QCF News — Development overlay
+# =============================================================================
+#   make dev
+#     ≡ docker compose --env-file .env.development \
+#         -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# What development changes, and why:
+#
+#   • Source is bind-mounted and both apps run their reload servers, so an edit
+#     on the host is live without a rebuild.
+#   • Every service publishes its port, so you browse the Next server directly
+#     at http://localhost:3000 and can attach psql, redis-cli or an HTTP client
+#     to the rest.
+#   • Nothing restarts automatically: a crash should stay visible.
+#
+# There is no proxy here, and the site does not need one: every browser-side
+# call the app makes is to a Next route (`/api/admin/*`, `/api/revalidate`,
+# `/api/newsletter/*`), and `/media/*` is covered by the rewrite in
+# next.config.js.  Nothing in the browser ever calls /api/v1 directly.
+#
+# The cost is that the host nginx routing is no longer exercised locally.  If
+# you change a BFF route's path, re-check /home/conf/qcfnews.conf by hand —
+# `nginx/qcfnews.conf.example` is the reference.
+# =============================================================================
+
+services:
+  db:
+    # No env_file: the base passes the POSTGRES_* values postgres needs, and
+    # secrets from the env file have no business in the database container.
+    ports:
+      # Non-default host port so a local PostgreSQL install can stay running.
+      - "${DB_PUBLISHED_PORT:-5434}:5432"
+
+  redis:
+    ports:
+      - "${REDIS_PUBLISHED_PORT:-6382}:6379"
+
+  backend:
+    build:
+      target: dev
+    env_file: .env.development
+    environment:
+      # No proxy in front locally, so X-Forwarded-For is whatever the caller
+      # typed.  Believing it here would let a curl one-liner choose its own
+      # rate-limit bucket and its own newsletter consent record; the socket
+      # peer address is the only honest answer.  Production sets this True
+      # because the host nginx overwrites the header itself.
+      RATE_LIMIT_TRUST_PROXY: "False"
+    volumes:
+      # Whole tree, so edits to migrations, fixtures and manage.py are live and
+      # uploads land in ./Backend/media where you can look at them.
+      - ./Backend:/app
+      # Shadow any host virtualenv: the container has its own interpreter, and
+      # leaving a host venv visible at /app/venv only invites the reloader and
+      # the import machinery to trip over it.
+      - /app/venv
+      - /app/.venv
+    ports:
+      - "${BACKEND_PUBLISHED_PORT:-8000}:8000"
+    # Watch only src/. Reloading on the whole of /app would mean watching the
+    # bind-mounted media directory, so every image upload would restart the API.
+    command: >
+      uvicorn app:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+      --reload-dir /app/src
+
+  frontend:
+    build:
+      target: dev
+      # next dev reads NEXT_PUBLIC_* at runtime, so the dev image takes no
+      # build args — changing a public URL just needs a container restart.
+    env_file: .env.development
+    volumes:
+      - .:/app
+      # Anonymous volumes keep the image's node_modules and the container's own
+      # .next from being shadowed by whatever the host happens to have.
+      - /app/node_modules
+      - /app/.next
+      # And keep the Next file watcher out of trees it has no business in —
+      # Backend/venv alone is tens of thousands of files.
+      - /app/Backend
+      - /app/.git
+    ports:
+      - "${FRONTEND_PUBLISHED_PORT:-3000}:3000"
+    command: ["npm", "run", "dev", "--", "-H", "0.0.0.0", "-p", "3000"]

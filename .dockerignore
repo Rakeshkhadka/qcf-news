@@ -1,0 +1,26 @@
+# Dependencies & build output
+node_modules
+.next
+out
+*.tsbuildinfo
+
+# Backend has its own Dockerfile
+Backend
+
+# Version control
+.git
+.gitignore
+
+# Environment files (injected at runtime, not baked in)
+.env
+.env.*
+
+# Editor / OS
+.DS_Store
+*.log
+.vscode
+.idea
+
+# Docker
+docker-compose*.yml
+Dockerfile

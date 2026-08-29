@@ -1,0 +1,15 @@
+{
+  "name": "Celeb Scoop — Entertainment & Celebrity News",
+  "short_name": "Celeb Scoop",
+  "description": "Breaking entertainment news, red carpet galleries and celebrity culture.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fbfcfc",
+  "theme_color": "#14181a",
+  "categories": ["news", "entertainment", "magazines"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+*.tsbuildinfo
+
+# Local environment — the committed *.example files are the templates; the
+# filled-in copies hold real secrets and never get committed.
+.env
+.env.local
+.env*.local
+.env.development
+.env.production
+# ...but keep the templates themselves tracked.
+!.env.development.example
+!.env.production.example
+
+# nginx is not in the Docker stack: it runs on the host from
+# /home/conf/qcfnews.conf, and its certificates live wherever the host keeps
+# them (/etc/letsencrypt, typically).  Nothing TLS-related belongs in this repo.
+# nginx/qcfnews.conf.example is the tracked reference for that host config.
+
+# Local database dumps from `make dbdump`.
+backups/
+
+# Editor / OS
+.DS_Store
+*.log

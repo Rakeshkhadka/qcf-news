@@ -1,0 +1,102 @@
+# =============================================================================
+# QCF News — Production overlay
+# =============================================================================
+#   make prod
+#     ≡ docker compose --env-file .env.production \
+#         -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# What production changes, and why:
+#
+#   • The two app services publish a port bound to 127.0.0.1, for the HOST
+#     nginx to proxy to.  PostgreSQL and Redis publish nothing at all.
+#   • Both apps run their real servers from an immutable image — gunicorn and
+#     the Next standalone build.  No source is mounted; a change means a build.
+#   • Everything restarts unless explicitly stopped, and every service has a
+#     health check so a bad container is visible rather than silently serving.
+#   • Media lives in a named volume, not on the host tree.
+#
+# The reverse proxy is NOT part of this stack.  nginx is installed on the host
+# and reads your own /home/conf/qcfnews.conf; `nginx/qcfnews.conf.example` is
+# the routing table it has to implement, and getting it wrong is silent —
+# `/api/admin/*` sent to the backend 404s admin login with no error anywhere.
+#
+# First deploy:
+#   cp .env.production.example .env.production   # then fill in every CHANGE_ME
+#   make ENV=prod build
+#   make ENV=prod migrate
+#   make ENV=prod up
+#   make ENV=prod superuser
+#   sudo nginx -t && sudo systemctl reload nginx
+# =============================================================================
+
+services:
+  db:
+    restart: unless-stopped
+    # Deliberately no `ports:` — the database is not exposed to the host.
+    # No `env_file` either: the base file already passes the three POSTGRES_*
+    # values postgres needs, and the rest of .env.production (JWT signing keys,
+    # the revalidation secret) has no business inside the database container.
+
+  redis:
+    restart: unless-stopped
+
+  backend:
+    build:
+      target: runner
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      # The host nginx terminates the client connection and sets
+      # X-Forwarded-For, so the header is trustworthy and rate limiting keys on
+      # the real client IP.
+      #
+      # That trust is only sound because of the bind address below.  Publish
+      # this port on 0.0.0.0 and anyone who can route to the host sets their own
+      # X-Forwarded-For, picks their own rate-limit bucket, and writes whatever
+      # they like into the newsletter consent record.
+      RATE_LIMIT_TRUST_PROXY: "True"
+    ports:
+      # Loopback only.  Docker's published ports are NAT rules inserted ahead of
+      # the INPUT chain, so a 0.0.0.0 binding is reachable from off-host even
+      # with ufw "deny incoming" — an explicit 127.0.0.1 is what actually keeps
+      # the API private, not the firewall.
+      - "127.0.0.1:${BACKEND_PUBLISHED_PORT:-8000}:8000"
+    volumes:
+      - backend_media:/app/media
+
+  frontend:
+    build:
+      target: runner
+      args:
+        # Next.js inlines NEXT_PUBLIC_* into the client bundle at build time,
+        # so these have to be build args as well as runtime env.  Rebuild the
+        # image after changing either of them.
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+        NEXT_PUBLIC_MEDIA_BASE_URL: ${NEXT_PUBLIC_MEDIA_BASE_URL:-}
+        NEXT_PUBLIC_NEWSLETTER_ENABLED: ${NEXT_PUBLIC_NEWSLETTER_ENABLED:-false}
+        # `rewrites()` is evaluated during the build, so the /media destination
+        # is baked into routes-manifest.json and is needed here too.
+        API_INTERNAL_ORIGIN: ${API_INTERNAL_ORIGIN:-http://backend:8000}
+    restart: unless-stopped
+    # Deliberately NO `env_file: .env.production`.  The Next server reads exactly
+    # seven variables (API_INTERNAL_ORIGIN, REVALIDATION_SECRET, the three
+    # NEXT_PUBLIC_* values and NODE_ENV); the base compose file passes the first
+    # six.  Handing it the whole file also handed the larger of the two attack
+    # surfaces POSTGRES_PASSWORD, DB_PASS, both JWT signing keys,
+    # NEWSLETTER_TOKEN_SECRET and SMTP_PASSWORD — none of which it uses.
+    environment:
+      # Load-bearing: the BFF session routes set `Secure` on the admin cookie
+      # only when this is exactly "production".  The runner stage sets it too;
+      # stated here so the guarantee is visible where the stack is described.
+      NODE_ENV: production
+    ports:
+      # Loopback only — same reasoning as the backend above.  The host nginx
+      # proxies to this; nothing else may reach the Next server directly, or the
+      # site is served on a second origin with no TLS and no security headers.
+      - "127.0.0.1:${FRONTEND_PUBLISHED_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

@@ -1,0 +1,331 @@
+# =============================================================================
+# QCF News — host nginx site config  (reference for /home/conf/qcfnews.conf)
+# =============================================================================
+# Topology this file assumes:
+#
+#     visitor ──https──▶ Cloudflare edge ──https──▶ host nginx ──http──▶ app
+#                        (Universal SSL)   (Origin CA cert)      127.0.0.1
+#
+# nginx is NOT in the Docker stack.  It runs on the host and proxies to two
+# containers published on loopback only:
+#
+#     frontend (Next.js)   127.0.0.1:3000
+#     backend  (FastAPI)   127.0.0.1:8000
+#
+# Install:
+#     sudo install -d /home/conf
+#     sudo cp nginx/qcfnews.conf.example /home/conf/qcfnews.conf
+#     $EDITOR /home/conf/qcfnews.conf            # server_name, cert paths
+#
+# Then include it from /etc/nginx/nginx.conf — INSIDE the `http { ... }` block,
+# next to the existing `include /etc/nginx/sites-enabled/*;` line:
+#
+#     http {
+#         ...
+#         include /home/conf/qcfnews.conf;
+#     }
+#
+# It has to be inside `http`.  `server`, `upstream` and `limit_req_zone` are all
+# http-context directives; included at the top level nginx refuses to start with
+# "server directive is not allowed here".
+#
+#     sudo nginx -t && sudo systemctl reload nginx
+#
+# Note on shared hosts: anything outside a `server` block is global to nginx.
+# That is why the zone is named `qcfnews_global` rather than `global`, and why
+# every proxy_set_header and every set_real_ip_from sits INSIDE the server block
+# — at http level they would apply to every other site this nginx serves.
+# =============================================================================
+
+
+# =============================================================================
+# CLOUDFLARE — read this before editing anything below
+# =============================================================================
+#
+# 1. SSL/TLS mode must be **Full (strict)**.
+#    Dashboard → SSL/TLS → Overview.  "Flexible" makes Cloudflare speak plain
+#    HTTP to this origin, which turns the :80 → :443 redirect below into an
+#    infinite loop the visitor sees as ERR_TOO_MANY_REDIRECTS.  "Full" (not
+#    strict) works but accepts any certificate, including an attacker's.
+#
+# 2. The Origin CA certificate is NOT browser-trusted.
+#    It is signed by Cloudflare's origin CA and is valid only for connections
+#    from the Cloudflare edge.  Turning the orange cloud off — or anyone
+#    reaching the origin IP directly — gets a certificate error, not a warning
+#    they can click through on an API call.  The proxy is not optional here.
+#
+#    Create it at: SSL/TLS → Origin Server → Create Certificate.
+#    Install as:
+#        /etc/ssl/cloudflare/qcfnews.pem      (certificate,  chmod 644)
+#        /etc/ssl/cloudflare/qcfnews.key      (private key,  chmod 600, root)
+#    It is valid for up to 15 years.  There is no renewal job and no certbot.
+#    Put the expiry in a calendar — nothing will remind you.
+#
+# 3. Firewall :80 and :443 to Cloudflare's ranges.
+#    Otherwise anyone who learns the origin IP bypasses the edge entirely: the
+#    WAF, the bot rules, the caching and the real-IP restoration below all stop
+#    applying.  With ufw:
+#        for c in $(curl -s https://www.cloudflare.com/ips-v4) \
+#                 $(curl -s https://www.cloudflare.com/ips-v6); do
+#          sudo ufw allow proto tcp from $c to any port 80,443
+#        done
+#        sudo ufw deny 80/tcp && sudo ufw deny 443/tcp
+#    Stronger still: enable Authenticated Origin Pulls (mTLS) and verify the
+#    client certificate here with ssl_client_certificate / ssl_verify_client.
+#
+# 4. Cloudflare caps request bodies at 100 MB (Free / Pro / Business).
+#    `POST /api/v1/uploads/images` accepts MAX_IMAGES_PER_UPLOAD (20) files of
+#    MAX_IMAGE_SIZE_MB (10) each — 200 MB, twice the edge limit.  A large batch
+#    is rejected by Cloudflare with a 413 that never reaches nginx or FastAPI,
+#    so there is nothing in any server log to explain it.  `.env.production.example`
+#    now ships MAX_IMAGES_PER_UPLOAD=9 (90 M) for this reason; if you raise it,
+#    keep the product under 100 or have the admin UI upload in smaller batches.
+#
+# 5. Cloudflare times out at 100 s (Free) and shows the visitor a 524.
+#    The origin timeouts below are deliberately shorter, so a slow request
+#    fails here — where it is logged — rather than at the edge.
+#
+# 6. Suggested Cache Rules (Caching → Cache Rules), in this order:
+#      • URI Path starts with "/api/" or "/admin"  → Bypass cache
+#      • URI Path starts with "/media/"            → Cache, respect origin TTL
+#      • URI Path starts with "/_next/static/"     → Cache, respect origin TTL
+#    Cloudflare does not cache HTML or Set-Cookie responses by default, so the
+#    bypass rule is belt-and-braces — but "Cache Everything" set by someone
+#    later would serve one reader's admin session to another without it.
+# =============================================================================
+
+
+upstream qcfnews_frontend {
+    server 127.0.0.1:3000;
+    keepalive 32;
+}
+
+upstream qcfnews_backend {
+    server 127.0.0.1:8000;
+    keepalive 32;
+}
+
+# Per-IP request budget, keyed on the REAL visitor address — see the realip
+# block inside the server below, without which this would bucket the entire
+# internet into Cloudflare's ~15 edge ranges and throttle the whole site.
+#
+# The backend enforces its own tighter per-endpoint limits; this is the cheap
+# outer wall that keeps a flood from reaching Python at all.  It also keeps
+# working when Redis is down, which the application limiter does not — it fails
+# open (src/utils/rate_limit.py).
+limit_req_zone $binary_remote_addr zone=qcfnews_global:10m rate=30r/s;
+
+
+# ── Plain HTTP ───────────────────────────────────────────────────────────────
+# In the intended setup nothing legitimate arrives here: Cloudflare connects to
+# the origin over 443 in Full (strict) mode, and step 3 above firewalls the port
+# shut. Kept as a redirect so a direct or misconfigured request is answered
+# rather than hanging.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name CHANGE_ME.example.com www.CHANGE_ME.example.com;
+
+    return 301 https://$host$request_uri;
+}
+
+
+server {
+    # The `ssl http2` form is what nginx 1.18 (Ubuntu 20.04's default, and the
+    # version checked on this machine) understands.  On nginx >= 1.25.1 it still
+    # works but warns; there, prefer the modern spelling:
+    #     listen 443 ssl;
+    #     listen [::]:443 ssl;
+    #     http2 on;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name CHANGE_ME.example.com www.CHANGE_ME.example.com;
+
+    # ── Cloudflare Origin CA certificate ─────────────────────────────────────
+    ssl_certificate     /etc/ssl/cloudflare/qcfnews.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/qcfnews.key;
+
+    ssl_protocols             TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache         shared:SSL:10m;
+    ssl_session_timeout       1d;
+    ssl_session_tickets       off;
+    # No OCSP stapling: the Origin CA certificate has no OCSP responder, and
+    # `ssl_stapling on` would only log a warning on every reload.
+
+    # ── Authenticated Origin Pulls (optional, recommended) ───────────────────
+    # Proves the connection really came from Cloudflare, not from someone who
+    # found the origin IP.  Download Cloudflare's origin-pull CA to the path
+    # below and uncomment both lines.
+    #
+    # ssl_client_certificate /etc/ssl/cloudflare/authenticated_origin_pull_ca.pem;
+    # ssl_verify_client on;
+
+    # ── Restore the visitor's IP ─────────────────────────────────────────────
+    # THIS BLOCK IS LOAD-BEARING.  Every request arrives from a Cloudflare edge
+    # address, so without it $remote_addr is Cloudflare and:
+    #
+    #   • limit_req above buckets the whole internet into ~15 ranges — the
+    #     site-wide 30 r/s budget is exhausted by ordinary traffic;
+    #   • the backend's 5-per-minute login limit locks out every reader after
+    #     five global attempts;
+    #   • newsletter_subscribers records Cloudflare as the consenting party,
+    #     which is not evidence of anything.
+    #
+    # CF-Connecting-IP carries exactly one address and Cloudflare overwrites it
+    # on every request, so it cannot be forged — but only when the connection
+    # genuinely came from a Cloudflare range, which is what set_real_ip_from
+    # checks. Never widen these to 0.0.0.0/0.
+    #
+    # Ranges as published 2026-08-29 (https://www.cloudflare.com/ips/).
+    # They change rarely; re-check them when you renew the certificate.
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 131.0.72.0/22;
+    set_real_ip_from 2400:cb00::/32;
+    set_real_ip_from 2606:4700::/32;
+    set_real_ip_from 2803:f800::/32;
+    set_real_ip_from 2405:b500::/32;
+    set_real_ip_from 2405:8100::/32;
+    set_real_ip_from 2a06:98c0::/29;
+    set_real_ip_from 2c0f:f248::/32;
+    real_ip_header   CF-Connecting-IP;
+
+    # 100 M, matching Cloudflare's own request-body cap exactly: anything the
+    # edge would forward, this origin accepts.  Raising it past 100 M buys
+    # nothing — Cloudflare rejects the request first, with a 413 you cannot log.
+    # Keep the backend's MAX_IMAGE_SIZE_MB × MAX_IMAGES_PER_UPLOAD under this
+    # (currently 10 × 9 = 90 M).  See point 4 at the top of this file.
+    client_max_body_size 100M;
+
+    # ── Proxy defaults ───────────────────────────────────────────────────────
+    # Inside the server block on purpose: at http level these would apply to
+    # every other site on this nginx.
+    proxy_http_version 1.1;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-Proto $scheme;
+    proxy_set_header   Connection        "";
+
+    # $remote_addr — which realip has just rewritten to the true visitor —
+    # and deliberately NOT $proxy_add_x_forwarded_for.
+    #
+    # The backend runs with RATE_LIMIT_TRUST_PROXY=True and believes the
+    # LEFT-MOST X-Forwarded-For entry (src/utils/client_ip.py).  Cloudflare
+    # forwards the client's own X-Forwarded-For in the chain it builds, so
+    # $proxy_add_x_forwarded_for would put an attacker-chosen value in front of
+    # the real one: a fresh value per request defeats the login rate limit
+    # entirely and writes a fictional IP into the newsletter consent record.
+    # Overwriting is what makes the header trustworthy.
+    proxy_set_header   X-Forwarded-For   $remote_addr;
+
+    # Shorter than Cloudflare's own 100 s cutoff, so a slow request fails here
+    # and is logged rather than surfacing to the visitor as an opaque 524.
+    proxy_connect_timeout 10s;
+    proxy_send_timeout    90s;
+    proxy_read_timeout    90s;
+
+    # ── Gzip ─────────────────────────────────────────────────────────────────
+    # Cloudflare compresses at the edge too; this keeps the origin→edge hop
+    # small and costs almost nothing.
+    gzip            on;
+    gzip_vary       on;
+    gzip_proxied    any;
+    gzip_comp_level 6;
+    gzip_min_length 1024;
+    gzip_types
+        text/plain
+        text/css
+        text/xml
+        text/javascript
+        application/json
+        application/javascript
+        application/xml
+        application/rss+xml
+        image/svg+xml;
+
+    # ── HSTS ─────────────────────────────────────────────────────────────────
+    # Prefer Cloudflare's own control (SSL/TLS → Edge Certificates → HSTS): the
+    # edge certificate is the one browsers actually validate, and the dashboard
+    # toggle is reversible in a way this header is not.  If you set it here
+    # instead, do so only after verifying HTTPS end to end — it tells browsers
+    # to refuse plain HTTP to this host for a year and cannot be recalled.
+    #
+    # add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # ── Frontend: Next.js BFF routes ─────────────────────────────────────────
+    # These three live in the Next app (app/api/admin/*, app/api/revalidate,
+    # app/api/newsletter/*), NOT in FastAPI.  They must be matched before the
+    # general /api/ rule below or admin login, cache invalidation and newsletter
+    # signup all 404 — with nothing in any log to say why.  nginx picks the
+    # longest matching prefix, so they win regardless of the order here.
+    location /api/admin/ {
+        limit_req zone=qcfnews_global burst=50 nodelay;
+        proxy_pass http://qcfnews_frontend;
+    }
+
+    location /api/revalidate {
+        proxy_pass http://qcfnews_frontend;
+    }
+
+    location /api/newsletter/ {
+        limit_req zone=qcfnews_global burst=20 nodelay;
+        proxy_pass http://qcfnews_frontend;
+    }
+
+    # ── Backend: API ─────────────────────────────────────────────────────────
+    # Nothing in the browser calls /api/v1 directly — the site talks only to the
+    # BFF routes above.  This rule exists for API clients outside the site.  If
+    # you have none, deleting it shrinks the public surface to the site itself
+    # and takes public self-registration off the internet with it.
+    location /api/ {
+        limit_req zone=qcfnews_global burst=50 nodelay;
+        proxy_pass http://qcfnews_backend;
+    }
+
+    # ── Backend: media ───────────────────────────────────────────────────────
+    # Upload filenames carry a uuid4 suffix (src/utils/storage.py), so a given
+    # URL never changes content and `immutable` is safe.  Cloudflare caches
+    # these at the edge, so most requests never reach this origin at all.
+    location /media/ {
+        proxy_pass http://qcfnews_backend;
+        add_header Cache-Control "public, max-age=2592000, immutable" always;
+    }
+
+    # ── Backend: health ──────────────────────────────────────────────────────
+    location = /health {
+        access_log off;
+        proxy_pass http://qcfnews_backend;
+    }
+
+    # ── Backend: API docs ────────────────────────────────────────────────────
+    # ENABLE_API_DOCS=False in production, so these already 404 at the app.
+    # Keep them proxied only if you intend to turn docs on behind an allow-list.
+    #
+    # location /docs         { proxy_pass http://qcfnews_backend; }
+    # location /redoc        { proxy_pass http://qcfnews_backend; }
+    # location /openapi.json { proxy_pass http://qcfnews_backend; }
+
+    # ── Frontend: immutable build assets ─────────────────────────────────────
+    location /_next/static/ {
+        proxy_pass http://qcfnews_frontend;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
+    # ── Frontend: everything else ────────────────────────────────────────────
+    location / {
+        proxy_pass http://qcfnews_frontend;
+    }
+}

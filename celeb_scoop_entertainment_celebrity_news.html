@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Celeb Scoop - Entertainment & Celebrity News</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "tertiary-fixed-dim": "#d2c4bb",
+                      "on-tertiary": "#ffffff",
+                      "surface-variant": "#e1e3e3",
+                      "on-error-container": "#93000a",
+                      "tertiary-fixed": "#efe0d6",
+                      "inverse-on-surface": "#eff1f1",
+                      "primary-fixed-dim": "#c3c7cc",
+                      "tertiary-container": "#2b231d",
+                      "surface-container": "#eceeee",
+                      "secondary-container": "#0070ea",
+                      "on-tertiary-fixed": "#221a14",
+                      "surface": "#f8fafa",
+                      "outline": "#75777b",
+                      "primary-container": "#212529",
+                      "on-error": "#ffffff",
+                      "on-tertiary-container": "#968981",
+                      "on-secondary": "#ffffff",
+                      "surface-container-lowest": "#ffffff",
+                      "background": "#f8fafa",
+                      "secondary": "#0059bb",
+                      "on-surface": "#191c1d",
+                      "on-tertiary-fixed-variant": "#4f453e",
+                      "pure-white": "#FFFFFF",
+                      "outline-variant": "#c5c6ca",
+                      "surface-tint": "#5b5f63",
+                      "secondary-fixed": "#d8e2ff",
+                      "surface-container-high": "#e6e8e8",
+                      "primary": "#0c1014",
+                      "on-background": "#191c1d",
+                      "error": "#ba1a1a",
+                      "surface-dim": "#d8dada",
+                      "surface-dark": "#343A40",
+                      "surface-bright": "#f8fafa",
+                      "on-primary-fixed-variant": "#43474c",
+                      "primary-fixed": "#e0e3e8",
+                      "on-surface-variant": "#44474a",
+                      "surface-container-highest": "#e1e3e3",
+                      "on-secondary-container": "#fefcff",
+                      "surface-container-low": "#f2f4f4",
+                      "inverse-primary": "#c3c7cc",
+                      "tertiary": "#150e09",
+                      "on-primary": "#ffffff",
+                      "secondary-fixed-dim": "#adc7ff",
+                      "inverse-surface": "#2e3131",
+                      "on-primary-container": "#888c91",
+                      "on-primary-fixed": "#181c20",
+                      "on-secondary-fixed": "#001a41",
+                      "error-container": "#ffdad6",
+                      "on-secondary-fixed-variant": "#004493"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "unit": "4px",
+                      "margin-desktop": "64px",
+                      "container-max": "1280px",
+                      "margin-mobile": "16px",
+                      "gutter": "24px"
+              },
+              "fontFamily": {
+                      "meta": ["Inter"],
+                      "display-lg": ["\"Source Serif 4\""],
+                      "headline-sm": ["\"Source Serif 4\""],
+                      "headline-md": ["\"Source Serif 4\""],
+                      "label-caps": ["Inter"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"]
+              }
+            }
+          }
+        }
+      </script>
+      <style>
+          body { font-family: 'Inter', sans-serif; }
+          .font-serif { font-family: 'Source Serif 4', serif; }
+          .scrollbar-hide::-webkit-scrollbar { display: none; }
+          .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+          .progress-bar {
+              position: fixed;
+              top: 0;
+              left: 0;
+              height: 3px;
+              background-color: #0070ea;
+              width: 0%;
+              z-index: 100;
+              transition: width 0.1s ease-out;
+          }
+      </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background antialiased selection:bg-secondary selection:text-on-secondary">
+    <div id="root"></div>
+
+    <!-- React and Dependencies -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/history@5/umd/history.development.js"></script>
+    <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js"></script>
+    <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+        const { MemoryRouter, Routes, Route, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+        /**
+         * Shared Components
+         */
+
+        const Header = ({ title = "Celeb Scoop" }) => (
+            <header class="bg-surface dark:bg-surface-dark text-primary dark:text-primary-fixed top-0 sticky z-50 border-b border-outline-variant dark:border-outline shadow-sm">
+                <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop flex items-center justify-between h-20">
+                    <button class="text-on-surface-variant hover:text-secondary transition-colors duration-200">
+                        <span class="material-symbols-outlined">menu</span>
+                    </button>
+                    <Link to="/" class="font-serif text-3xl md:text-5xl font-bold tracking-tight text-primary dark:text-primary-fixed uppercase decoration-none">
+                        {title}
+                    </Link>
+                    <button class="text-on-surface-variant hover:text-secondary transition-colors duration-200">
+                        <span class="material-symbols-outlined">search</span>
+                    </button>
+                </div>
+            </header>
+        );
+
+        const Footer = ({ title = "Celeb Scoop" }) => (
+            <footer class="bg-surface-container-lowest dark:bg-surface-dark text-primary dark:text-primary-fixed border-t border-outline-variant dark:border-outline mt-24">
+                <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12 flex flex-col md:flex-row justify-between items-start">
+                    <div class="mb-8 md:mb-0">
+                        <Link to="/" class="font-serif text-3xl text-primary block mb-4 uppercase decoration-none">{title}</Link>
+                        <p class="text-sm text-on-surface-variant dark:text-on-tertiary-container">© 2024 {title}. All rights reserved.</p>
+                    </div>
+                    <nav class="flex flex-col md:flex-row gap-8">
+                        <a class="text-xs font-bold uppercase tracking-widest text-on-surface-variant dark:text-on-tertiary-container hover:text-secondary transition-colors" href="#">Sitemap</a>
+                        <a class="text-xs font-bold uppercase tracking-widest text-on-surface-variant dark:text-on-tertiary-container hover:text-secondary transition-colors" href="#">Privacy</a>
+                        <a class="text-xs font-bold uppercase tracking-widest text-on-surface-variant dark:text-on-tertiary-container hover:text-secondary transition-colors" href="#">Terms</a>
+                        <a class="text-xs font-bold uppercase tracking-widest text-on-surface-variant dark:text-on-tertiary-container hover:text-secondary transition-colors" href="#">Contact</a>
+                    </nav>
+                </div>
+            </footer>
+        );
+
+        const Newsletter = () => (
+            <section class="bg-primary-container text-on-primary p-12 rounded-lg flex flex-col md:flex-row items-center justify-between border border-outline-variant">
+                <div class="md:w-1/2 mb-8 md:mb-0">
+                    <h2 class="font-serif text-4xl mb-4">Get the Scoop.</h2>
+                    <p class="text-lg text-on-primary-container">Premium entertainment news, exclusive interviews, and red carpet galleries, delivered straight to your inbox.</p>
+                </div>
+                <div class="md:w-5/12 w-full">
+                    <form class="flex flex-col sm:flex-row gap-4" onSubmit={e => e.preventDefault()}>
+                        <input class="w-full bg-surface-dark border border-outline text-pure-white focus:border-secondary focus:ring-1 focus:ring-secondary rounded px-4 py-3 outline-none" placeholder="Email address" type="email"/>
+                        <button class="bg-pure-white text-primary hover:bg-surface-variant font-bold text-xs uppercase px-8 py-3 rounded transition-colors whitespace-nowrap">Subscribe</button>
+                    </form>
+                </div>
+            </section>
+        );
+
+        /**
+         * Screen Components
+         */
+
+        const HomePage = () => {
+            const navigate = useNavigate();
+            return (
+                <div>
+                    <Header />
+                    <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12">
+                        {/* Hero Section */}
+                        <section class="mb-24">
+                            <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-center">
+                                <div class="lg:col-span-8 order-2 lg:order-1 mt-8 lg:mt-0">
+                                    <span class="inline-block bg-secondary-fixed-dim text-secondary px-2 py-1 rounded text-xs font-bold uppercase tracking-widest mb-4">Exclusive</span>
+                                    <h1 class="font-serif text-4xl md:text-6xl mb-6 text-primary leading-tight cursor-pointer hover:text-secondary transition-colors" onClick={() => navigate('/article')}>Glitz, Glamour, and Surprises: Inside the Global Awards Gala</h1>
+                                    <p class="text-lg text-on-surface-variant mb-6 md:w-5/6">From jaw-dropping red carpet looks to unexpected wins, we have the complete breakdown of everything that happened at Hollywood's biggest night of the year.</p>
+                                    <div class="flex items-center space-x-4 text-sm text-on-surface-variant font-medium">
+                                        <span>Entertainment Desk</span>
+                                        <span class="w-1 h-1 bg-outline-variant rounded-full"></span>
+                                        <span>1 hour ago</span>
+                                        <span class="w-1 h-1 bg-outline-variant rounded-full"></span>
+                                        <span>8 min read</span>
+                                    </div>
+                                </div>
+                                <div class="lg:col-span-4 order-1 lg:order-2 h-64 lg:h-[400px] w-full relative">
+                                    <div class="bg-cover bg-center w-full h-full rounded shadow-sm border border-outline-variant cursor-pointer" onClick={() => navigate('/article')} style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDJyNRw7tqkC-oOloVDYRhR6ysC81-CnarcaEYD94A2iSfFatw5VEvYRlnwwKkOt_dES7h-S0674cxBs3dKTMhEXqv0dS_NjDk5_x2wX4IRnRJ1KqQhlmjrQG_BKLobQXVTXJoWEkyqrkGy-VriayIuV-XmogIQT60Fxgs3vjkW4-McjAUv8jVV3X0zWM-Fc9Ei6CUML2d4UjfPfihzpj8Wf93YzdRRSVgGUU5-6y7EYuDA3GgjEbAAhg')"}}></div>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Trending Section */}
+                        <section class="mb-24 border-t border-outline-variant pt-12">
+                            <h2 class="font-serif text-2xl text-primary mb-6 flex items-center">
+                                <span class="material-symbols-outlined mr-2">local_fire_department</span> Hot Right Now
+                            </h2>
+                            <div class="flex overflow-x-auto pb-6 space-x-gutter snap-x snap-mandatory scrollbar-hide">
+                                {[
+                                    {cat: "Couples", title: "A-List Pair Spotted on Romantic Getaway in Italy", time: "30 mins ago"},
+                                    {cat: "Fashion", title: "The Return of Vintage Couture on the Runway", time: "2 hours ago"},
+                                    {cat: "Music", title: "Pop Icon Drops Surprise Album at Midnight", time: "4 hours ago"},
+                                    {cat: "Movies", title: "Highly Anticipated Sequel Breaks Box Office Records", time: "6 hours ago"},
+                                    {cat: "TV", title: "Shocking Finale Leaves Fans Demanding Answers", time: "9 hours ago"}
+                                ].map((item, i) => (
+                                    <article key={i} class="flex-none w-72 snap-start bg-pure-white p-6 border border-outline-variant rounded hover:bg-surface-container-lowest transition-colors cursor-pointer group" onClick={() => navigate('/red-carpet')}>
+                                        <span class="text-xs font-bold uppercase text-secondary mb-3 block">{item.cat}</span>
+                                        <h3 class="font-serif text-xl text-primary mb-3 group-hover:text-secondary transition-colors">{item.title}</h3>
+                                        <p class="text-sm text-on-surface-variant">{item.time}</p>
+                                    </article>
+                                ))}
+                            </div>
+                        </section>
+
+                        {/* Category Grid */}
+                        <section class="mb-24">
+                            <h2 class="font-serif text-4xl text-primary mb-8 border-b border-outline-variant pb-4">Latest Scoop</h2>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+                                {/* Movies Column */}
+                                <div class="space-y-gutter">
+                                    <h3 class="font-serif text-3xl border-b-2 border-primary pb-2 mb-4">Movies</h3>
+                                    <article class="group cursor-pointer" onClick={() => navigate('/feed')}>
+                                        <div class="w-full h-48 mb-4">
+                                            <div class="bg-cover bg-center w-full h-full rounded border border-outline-variant" style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCUr8QAB9o_JCj-_9YusI9W0xVhlAlxPbv0aHIm87Ur-tvigX-KQ7b9GzKBxyItXa66r2ourmzUZXDSOU5RDZ84vXUZvT3FB41_lKW4vRBNXknUyINoHCIpRdZhv_cU9M8UMc_64fFEIvN4iWJoSRD452ysf5MIENvm71JFWbl9f05RUggcjzCBD3S8HKJ-L70PnYQH9SnjSZUe9tqENbBbX0OW4x6U-VhiSINGStimsfPIAPwxwW2TbQ')"}}></div>
+                                        </div>
+                                        <h4 class="font-serif text-xl text-primary mb-2 group-hover:text-secondary transition-colors">Sci-Fi Epic Premiere Draws Massive Crowds in London</h4>
+                                        <p class="text-sm text-on-surface-variant">1 hr ago</p>
+                                    </article>
+                                </div>
+                                {/* Style Column */}
+                                <div class="space-y-gutter">
+                                    <h3 class="font-serif text-3xl border-b-2 border-primary pb-2 mb-4">Style</h3>
+                                    <article class="group cursor-pointer bg-surface-container-low p-6 rounded border border-outline-variant" onClick={() => navigate('/article')}>
+                                        <h4 class="font-serif text-xl text-primary mb-3 group-hover:text-secondary transition-colors">Met Gala Looks: Who Nailed the Theme and Who Missed the Mark</h4>
+                                        <div class="flex items-center space-x-2 text-sm text-on-surface-variant">
+                                            <span class="material-symbols-outlined text-sm">photo_camera</span>
+                                            <span>Gallery Inside</span>
+                                        </div>
+                                    </article>
+                                </div>
+                                {/* Music Column */}
+                                <div class="space-y-gutter">
+                                    <h3 class="font-serif text-3xl border-b-2 border-primary pb-2 mb-4">Music</h3>
+                                    <article class="group cursor-pointer" onClick={() => navigate('/red-carpet')}>
+                                        <div class="w-full h-64 mb-4">
+                                            <div class="bg-cover bg-center w-full h-full rounded border border-outline-variant" style={{backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBgv7kOesiHtBsvanCb4wdYAy210zIJGU0BhEcbs9PZvJ7KdE6hgWoMsVSB_0YppvG2v3fkrScE9Wh30Hsj0lRmOyUKdN4E8b3kPgCTPGxVwPvnV1VHMqijRMLwZ5sY4h_mB_xXfLiF26BJk-wNLKatemBE6oGgPJ0AU08DQArjK5rKKVvEQ-6T0L0XpqBZdHOP97YhfaDzi2lSP76-0SWgQP5re0WQPY8qw__689fj6ba3GOQ1wFIJ7Q')"}}></div>
+                                        </div>
+                                        <h4 class="font-serif text-xl text-primary mb-2 group-hover:text-secondary transition-colors">World Tour Sells Out in Minutes</h4>
+                                        <p class="text-sm text-on-surface-variant">10 hrs ago</p>
+                                    </article>
+                                </div>
+                            </div>
+                        </section>
+
+                        <Newsletter />
+                    </main>
+                    <Footer />
+                </div>
+            );
+        };
+
+        const FeedPage = () => {
+            const navigate = useNavigate();
+            return (
+                <div class="flex flex-col min-h-screen">
+                    <Header />
+                    <div class="flex-grow flex max-w-container-max mx-auto w-full">
+                        <aside class="hidden md:flex w-64 flex-shrink-0 border-r border-outline-variant py-6 px-4 flex-col">
+                            <h2 class="font-serif text-2xl text-primary mb-6 px-4">Categories</h2>
+                            <nav class="flex flex-col gap-2">
+                                <button onClick={() => navigate('/red-carpet')} class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container font-bold rounded-full shadow-md">
+                                    <span class="material-symbols-outlined text-xl">star</span>
+                                    <span class="text-[10px] uppercase tracking-widest">Red Carpet</span>
+                                </button>
+                                {['Movies', 'Music', 'TV', 'Style'].map(cat => (
+                                    <button key={cat} onClick={() => navigate('/red-carpet')} class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-full group">
+                                        <span class="material-symbols-outlined text-xl group-hover:text-primary transition-colors">{cat === 'Movies' ? 'movie' : cat === 'Music' ? 'music_note' : cat === 'TV' ? 'tv' : 'checkroom'}</span>
+                                        <span class="text-[10px] uppercase tracking-widest group-hover:text-primary transition-colors">{cat}</span>
+                                    </button>
+                                ))}
+                            </nav>
+                        </aside>
+                        <main class="flex-grow p-gutter pt-8">
+                            <div class="grid grid-cols-12 gap-gutter mb-12">
+                                <article class="col-span-12 lg:col-span-8 group cursor-pointer relative bg-surface-container-lowest border border-outline-variant hover:border-secondary transition-colors overflow-hidden rounded" onClick={() => navigate('/article')}>
+                                    <div class="h-96 w-full relative overflow-hidden">
+                                        <img class="object-cover w-full h-full transform group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSyYFMBoqjinq0ITb_eqAcAdNMqbzaIrhLOD_0uPTvKTIvv_0qj6TdAxDciW0zxLSnLxKTFQGHaz6O9XQLMyC8LwtbTvEFRRsGXbYz3GDzqeZao0Fkoz9EffIcpRE3jml9oTETGVJ4W7gqaTxqgsiLLjx49aooq09XO2uvV83p_veZNkgkLwXotUCc0WsqDtfwOwsLYwHzZ_e4ZaxyBBOsT-7G9MRfu7QCIBL9aP9knm-_x5qUffqySQ" />
+                                    </div>
+                                    <div class="p-6">
+                                        <div class="flex items-center gap-3 mb-4">
+                                            <span class="bg-secondary-fixed text-on-secondary-fixed text-[10px] uppercase font-bold px-2 py-1 rounded">Exclusive</span>
+                                            <span class="text-sm text-on-surface-variant">2 hrs ago • Red Carpet</span>
+                                        </div>
+                                        <h2 class="font-serif text-3xl text-primary mb-4 group-hover:text-secondary transition-colors">Hollywood's Hottest Couple Makes Red Carpet Debut</h2>
+                                        <p class="text-lg text-on-surface-variant line-clamp-2">Rumors were finally put to rest as the star-studded premiere was completely overshadowed by their debut appearance.</p>
+                                    </div>
+                                </article>
+                                <aside class="hidden lg:flex col-span-4 flex-col gap-6">
+                                    <h3 class="font-serif text-xl border-b border-outline-variant pb-2 mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-secondary">trending_up</span> Trending</h3>
+                                    {[1, 2, 3].map(i => (
+                                        <article key={i} class="group cursor-pointer flex gap-4" onClick={() => navigate('/red-carpet')}>
+                                            <div class="text-4xl font-serif text-outline-variant group-hover:text-secondary opacity-50 transition-colors">{i}</div>
+                                            <div>
+                                                <h4 class="font-serif text-lg text-primary group-hover:text-secondary line-clamp-2">Behind the Scenes Drama on Set of Upcoming Blockbuster</h4>
+                                                <span class="text-xs text-on-surface-variant uppercase mt-1 block">Movies</span>
+                                            </div>
+                                        </article>
+                                    ))}
+                                </aside>
+                            </div>
+                        </main>
+                    </div>
+                    <Footer />
+                </div>
+            );
+        };
+
+        const RedCarpetPage = () => {
+            const navigate = useNavigate();
+            return (
+                <div class="bg-[#F4F6F6] min-h-screen">
+                    <Header />
+                    <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12">
+                        <section class="mb-12">
+                            <div class="flex items-center space-x-2 mb-4">
+                                <span class="text-[10px] font-bold text-secondary uppercase tracking-widest">Category</span>
+                                <span class="material-symbols-outlined text-outline-variant text-sm">chevron_right</span>
+                                <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Red Carpet News</span>
+                            </div>
+                            <h1 class="font-serif text-4xl md:text-5xl text-primary mb-6">Red Carpet Roundup</h1>
+                            <div class="h-px bg-primary/10 mb-8 w-full"></div>
+                            <article class="relative bg-white border border-outline-variant overflow-hidden group cursor-pointer flex flex-col md:flex-row h-[500px]" onClick={() => navigate('/article')}>
+                                <div class="w-full md:w-2/3 h-64 md:h-full overflow-hidden">
+                                    <img class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-700" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBYuqgaed8DOFa68su-M86YEkoRjubaOlE45Ir8V8TVYpFa135EziWv5TyFG4PoxiRB1AypldsbWno32K0VFjtex3UCsWbOjpxbxBas_tocHPK8zcC0YVl9vvyR3LsXb1CHqZiaO_aQVrJojHhgsErBztlVBS74gmnr8kFPxRQBmOh0Y5czdTtowDPtemxRoUk0Wd2Re19QmRKoFJisbYmsQguzOex-brJ_XL5IUYZYjVKbDnM4XOM1mQ" />
+                                </div>
+                                <div class="w-full md:w-1/3 p-8 flex flex-col justify-center bg-white">
+                                    <span class="text-[10px] font-bold text-secondary mb-3 uppercase">Award Season</span>
+                                    <h2 class="font-serif text-3xl text-primary mb-4 leading-tight">The Most Jaw-Dropping Looks from the Golden Globes</h2>
+                                    <p class="text-sm text-on-surface-variant mb-6 line-clamp-3">From sheer elegance to bold statements, see who stole the spotlight on the red carpet this year with unforgettable fashion moments.</p>
+                                    <div class="text-xs text-on-surface-variant mt-auto">Chloe Sterling • 1 hour ago</div>
+                                </div>
+                            </article>
+                        </section>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+                            <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-gutter">
+                                {[1,2,3,4].map(i => (
+                                    <article key={i} class="bg-white border border-outline-variant p-4 hover:border-primary transition-colors cursor-pointer group flex flex-col" onClick={() => navigate('/article')}>
+                                        <div class="w-full h-48 overflow-hidden mb-4">
+                                            <img class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" src={`https://lh3.googleusercontent.com/aida-public/AB6AXuAMVXEWlT4UxeFOvZEMxF-ZNN1ZNNkGoA6Vl2F_AsnaLUCdRdpsdjiL1fVPFGkD6kyF0LP8UXN2u9UyFZAh7N4XQHxR9fSVmP5ZXm0axtmR1h8e_BNFKbYfZkeurlhrBUpVsP_8_SD320WPQh63VEIOmUpAIFWV8PPAki5b54W5gWpRZAPvjxnAUTKaDTd7e9ILRuDotpKR_HrTCoy7diJINvtzY8ZniglVMO4HXnYtYvf-81vbFyl8iA`} />
+                                        </div>
+                                        <span class="text-[10px] font-bold text-secondary mb-2 uppercase">Feature</span>
+                                        <h4 class="font-serif text-xl text-primary mb-3">Paris Fashion Week: The Celebrities Who Stole the Front Row</h4>
+                                        <p class="text-sm text-on-surface-variant mb-4 line-clamp-2">A-listers flocked to Paris to witness the latest haute couture collections.</p>
+                                    </article>
+                                ))}
+                            </div>
+                            <aside class="space-y-12">
+                                <div class="bg-white border border-outline-variant p-6">
+                                    <h3 class="font-serif text-xl mb-6">Trending Celebs</h3>
+                                    {[1, 2, 3].map(i => (
+                                        <div key={i} class="group cursor-pointer py-4 border-b border-outline-variant last:border-0" onClick={() => navigate('/article')}>
+                                            <div class="flex gap-4 items-start">
+                                                <div class="text-3xl font-serif text-outline-variant group-hover:text-secondary opacity-50">{i}</div>
+                                                <h4 class="font-serif text-base text-primary group-hover:text-secondary line-clamp-2">Zendaya's Vintage Gown Breaks the Internet</h4>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </aside>
+                        </div>
+                    </main>
+                    <Footer />
+                </div>
+            );
+        };
+
+        const ArticlePage = () => {
+            const navigate = useNavigate();
+            const [scrollWidth, setScrollWidth] = useState(0);
+
+            useEffect(() => {
+                const handleScroll = () => {
+                    const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+                    const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+                    setScrollWidth((winScroll / height) * 100);
+                };
+                window.addEventListener('scroll', handleScroll);
+                return () => window.removeEventListener('scroll', handleScroll);
+            }, []);
+
+            return (
+                <div class="bg-surface">
+                    <div class="progress-bar" style={{width: `${scrollWidth}%`}}></div>
+                    <Header title="THE DAILY BRIEF" />
+                    <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12">
+                        <div class="grid grid-cols-12 gap-gutter">
+                            <article class="col-span-12 lg:col-span-8">
+                                <div class="mb-4">
+                                    <span class="px-3 py-1 bg-secondary-container bg-opacity-10 text-secondary font-bold text-[10px] uppercase rounded">ENTERTAINMENT</span>
+                                </div>
+                                <h1 class="font-serif text-4xl md:text-5xl lg:text-6xl text-primary mb-6 leading-tight">
+                                    Red Carpet Secrets: The Untold Story of the Year's Most Iconic Gown
+                                </h1>
+                                <h2 class="font-serif text-xl md:text-2xl text-on-surface-variant mb-8 leading-relaxed">
+                                    Behind the seams of the dress that broke the internet, featuring exclusive interviews with the designer and the star who brought it to life.
+                                </h2>
+                                <div class="flex items-center justify-between border-y border-outline-variant/30 py-4 mb-8">
+                                    <div class="flex items-center gap-4">
+                                        <img class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAW2erRGHGJ2yHjfoVPfNt3VjpIjVp0IBRIhc8s5-jSMw1ivLN2EDyVW1ev-fzmwOb6XqTXdLer5NV-IkkTuy5TCHi9nXamKKJ5Em45098bDIM3fgr-ty5tRaNNagkhjS0yiZHtsa2Q-gHpAmLlN2-0LsPUQdZE8mEEVFL-aMSC-IR25kYRFi_6msQI4gRdTyFaXLe7F0leIILYVhnU4fVyBMeEvHIMLMw43zFiHTIk6Jog2l885r0AQQ" />
+                                        <div>
+                                            <p class="text-sm font-bold text-primary">Eleanor Vance</p>
+                                            <p class="text-xs text-on-surface-variant">Senior Style Editor</p>
+                                        </div>
+                                    </div>
+                                    <div class="text-right text-xs text-on-surface-variant">
+                                        <p>October 24, 2024</p>
+                                        <p>7 Min Read</p>
+                                    </div>
+                                </div>
+                                <figure class="mb-10">
+                                    <img class="w-full h-auto rounded-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBEiwPqQjcZkzIDP7XANvDtCp6Q6juIhBXDglorDZZ9daRR6OwxQSRg26MGSQz301JSB7SRD6gWk2S9qkaxi3qXOoQmeYV3PE2apYahcZaBp2KRJ4TO7isxcmr6StJIEFKEHBVRbv1P8FANPrD72K7dFlu7I9eGgVH4lfZ1uKIxd6_WxmLv2EDN_d5CsEtKoDP84c-aS18TQ2psKiVrAtTHaqkgN4P2kcwY7Q-cv2pnko1duu9F1mPR3A" />
+                                    <figcaption class="mt-2 text-xs text-on-surface-variant text-right italic">Photo: Getty Images / Fashion Week Weekly</figcaption>
+                                </figure>
+                                <div class="text-lg leading-relaxed text-on-surface space-y-6">
+                                    <p>The moment she stepped out of the black SUV, the collective gasp from the press pit was audible. It wasn't just a dress; it was an architectural marvel wrapped in silk and hand-sewn crystals.</p>
+                                    <blockquote class="border-l-4 border-secondary pl-6 py-2 my-8 italic text-3xl font-serif text-primary">
+                                        "We wanted to create something that didn't just reflect the light, but seemed to generate its own. It was about capturing the essence of a modern supernova."
+                                    </blockquote>
+                                    <p>Designed by an elusive atelier based in Milan, the gown took over 800 hours to construct. The process was shrouded in secrecy, with NDAs signed by everyone from the seamstresses to the delivery drivers.</p>
+                                    <h3 class="font-serif text-2xl text-primary mt-8 mb-4">The Engineering Behind the Glamour</h3>
+                                    <p>What the cameras didn't capture was the intricate internal corsetry required to support the weight of the embellishments. The gown weighed nearly 30 pounds, primarily due to the dense concentration of crystals.</p>
+                                </div>
+                            </article>
+                            <aside class="col-span-12 lg:col-span-4 lg:pl-8 space-y-12">
+                                <section>
+                                    <h3 class="font-bold text-[10px] tracking-widest text-primary border-b border-outline-variant pb-2 mb-6 uppercase flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-secondary text-base">trending_up</span> Trending Now
+                                    </h3>
+                                    <ul class="space-y-6">
+                                        {[
+                                            {cat: "FILM", title: "Leading Man Walks Off Set After Disagreement"},
+                                            {cat: "MUSIC", title: "Pop Sensation Teases Surprise Midnight Album Drop"},
+                                            {cat: "ROYALS", title: "Palace Insiders Reveal Tension Over State Dinner"}
+                                        ].map((item, i) => (
+                                            <li key={i} class="group cursor-pointer" onClick={() => navigate('/')}>
+                                                <span class="text-[10px] font-bold text-secondary mb-1 block uppercase tracking-widest">{item.cat}</span>
+                                                <h4 class="font-serif text-lg text-primary group-hover:text-secondary transition-colors line-clamp-2">{item.title}</h4>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </section>
+                                <div class="bg-surface-container-low p-6 rounded-lg border border-outline-variant">
+                                    <h3 class="font-serif text-xl mb-2">The Daily Scoop</h3>
+                                    <p class="text-sm text-on-surface-variant mb-4">Get the latest celebrity news delivered straight to your inbox.</p>
+                                    <form class="flex flex-col gap-3" onSubmit={e => e.preventDefault()}>
+                                        <input class="w-full px-4 py-2 border border-outline-variant rounded text-sm focus:ring-1 focus:ring-secondary outline-none" placeholder="Your email address" type="email" />
+                                        <button class="bg-primary text-white font-bold text-xs py-2 rounded uppercase tracking-widest">Subscribe</button>
+                                    </form>
+                                </div>
+                            </aside>
+                        </div>
+                    </main>
+                    <Footer title="THE DAILY BRIEF" />
+                </div>
+            );
+        };
+
+        /**
+         * Main App Component
+         */
+
+        const App = () => {
+            const location = useLocation();
+
+            useEffect(() => {
+                window.scrollTo(0, 0);
+            }, [location]);
+
+            return (
+                <Routes>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/feed" element={<FeedPage />} />
+                    <Route path="/red-carpet" element={<RedCarpetPage />} />
+                    <Route path="/article" element={<ArticlePage />} />
+                </Routes>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(
+            <MemoryRouter>
+                <App />
+            </MemoryRouter>
+        );
+    </script>
+</body>
+</html>

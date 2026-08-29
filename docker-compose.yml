@@ -1,0 +1,149 @@
+# =============================================================================
+# QCF News — Base Docker Compose (shared by every environment)
+# =============================================================================
+# This file is NEVER used on its own.  It defines the shape of the stack; an
+# overlay decides how each service actually runs:
+#
+#   development →  docker-compose.yml + docker-compose.dev.yml  + .env.development
+#   production  →  docker-compose.yml + docker-compose.prod.yml + .env.production
+#
+# Use the Makefile rather than remembering the flags:
+#
+#   make dev              # start the development stack
+#   make prod             # start the production stack
+#   make ENV=prod migrate # run alembic against production
+#
+# Everything environment-specific — restart policy, published ports, build
+# target, source mounts, health checks — lives in the overlay, so the
+# difference between dev and prod is one file you can read end to end.
+#
+# There is no reverse proxy in this stack.  nginx runs on the HOST, outside
+# Docker, from a config you maintain yourself at /home/conf/qcfnews.conf and
+# `include` from nginx.conf.  Both app services therefore publish a port for
+# it to reach — see the overlays, and `nginx/qcfnews.conf.example` for the
+# routing table that config has to implement.
+# =============================================================================
+
+# ── Log rotation ──────────────────────────────────────────────────────────────
+# Docker's default json-file driver never rotates.  gunicorn runs with
+# --access-logfile -, one line per request, so an unattended box fills its disk
+# and Postgres is the first thing to fall over when it does.  Capped at 50 MB
+# per service.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: ${PROJECT_NAME:-qcf_news}_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default-logging
+    networks:
+      - internal
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ${PROJECT_NAME:-qcf_news}_redis
+    command: >
+      redis-server
+      --maxmemory ${REDIS_MAXMEMORY:-128mb}
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+    networks:
+      - internal
+
+  # ── Backend (FastAPI) ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+      # `dev` → uvicorn --reload with dev tooling; `runner` → gunicorn.
+      target: ${BACKEND_TARGET:-runner}
+    container_name: ${PROJECT_NAME:-qcf_news}_backend
+    environment:
+      # The connection details always point at the sibling containers; the
+      # DB_HOST in the env file is only used when running outside Docker.
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASS: ${POSTGRES_PASSWORD}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *default-logging
+    networks:
+      - internal
+
+  # ── Frontend (Next.js) ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # `dev` → next dev with HMR; `runner` → the standalone production server.
+      target: ${FRONTEND_TARGET:-runner}
+    container_name: ${PROJECT_NAME:-qcf_news}_frontend
+    environment:
+      # Server-side only: the private name SSR fetches and the BFF routes use.
+      # It never reaches a browser, so a Docker service name is correct here —
+      # which is exactly why media URLs are not built from it.
+      API_INTERNAL_ORIGIN: ${API_INTERNAL_ORIGIN:-http://backend:8000}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+      NEXT_PUBLIC_MEDIA_BASE_URL: ${NEXT_PUBLIC_MEDIA_BASE_URL:-}
+      # Renders the newsletter signup form.  `next dev` reads it at
+      # startup; the production image has it baked in at build time.
+      NEXT_PUBLIC_NEWSLETTER_ENABLED: ${NEXT_PUBLIC_NEWSLETTER_ENABLED:-false}
+      # Lets the backend trigger cache invalidation server-to-server.
+      REVALIDATION_SECRET: ${REVALIDATION_SECRET:-}
+    depends_on:
+      # Wait for the API to answer its health check, not merely for the
+      # container to exist.  Without the condition, Next starts while gunicorn
+      # is still booting and the build-time prerender of /article and /category
+      # falls back to placeholder content that then sits in the cache.
+      backend:
+        condition: service_healthy
+    logging: *default-logging
+    networks:
+      - internal
+
+# ── Volumes ────────────────────────────────────────────────────────────────────
+# Named volumes are namespaced by COMPOSE_PROJECT_NAME, so the development and
+# production stacks never share a database or a media directory.
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_media:
+    driver: local
+
+# ── Networks ───────────────────────────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge

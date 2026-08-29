@@ -1,0 +1,63 @@
+# =============================================================================
+# DEPRECATED — backend-only stack, kept for isolated backend work.
+# =============================================================================
+# The full development environment now lives at the repository root and runs
+# the backend and frontend together:
+#
+#     cp .env.development.example .env.development
+#     make dev
+#
+# Prefer that. Use this one only to bring up the API and its datastores alone.
+#
+# Container names are namespaced so this stack can coexist with `make dev`.
+# =============================================================================
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: qcf_news_apionly_db
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5434:5432"
+    volumes:
+      - qcf_news_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: qcf_news_apionly_redis
+    ports:
+      - "6382:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: qcf_news_apionly_backend
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  qcf_news_postgres_data:

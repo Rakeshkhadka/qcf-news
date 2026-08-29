@@ -1,0 +1,19 @@
+# =============================================================================
+# QCF News — backend development / CI dependencies
+# =============================================================================
+# Installed ONLY into the `dev` stage of Backend/Dockerfile, never into the
+# production `runner` image.  Everything the app needs at runtime belongs in
+# requirements.txt; this file is for the tools that check it.
+#
+# Install locally with:  pip install -r requirements.txt -r requirements-dev.txt
+# =============================================================================
+
+# Tests — the suite in Backend/tests is written with unittest, which pytest
+# collects and runs natively; pytest is here for the reporting and fixtures.
+pytest==8.3.4
+pytest-asyncio==0.25.2
+
+# Static checks — configured in setup.cfg
+flake8==7.1.1
+isort==5.13.2
+mypy==1.14.1

@@ -1,0 +1,46 @@
+# Core Framework
+fastapi[standard]==0.115.11
+uvicorn[standard]==0.34.0
+gunicorn==23.0.0
+mangum==0.19.0
+
+# Database
+SQLAlchemy==2.0.39
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+alembic==1.15.1
+
+# Settings & Validation
+pydantic[email]==2.11.3
+pydantic_settings==2.8.1
+
+# Authentication
+python-jose[cryptography]==3.4.0
+PyJWT==2.10.1
+passlib[bcrypt]==1.7.4
+cryptography==44.0.0
+
+# Dependency Injection
+dependency-injector==4.46.0
+
+# Caching
+redis==5.2.1
+
+# Image processing
+Pillow>=11.0.0
+
+# Utilities
+inflect==7.5.0
+python-dotenv==1.1.0
+
+# CLI
+click==8.1.8
+
+# HTTP Client
+httpx==0.28.1
+
+# Async primitives.  Already installed as a Starlette dependency, but listed
+# explicitly because `src/utils/mailer.py` imports it directly to push blocking
+# smtplib calls onto a worker thread.  Deliberately a floor rather than a pin,
+# so it stays whatever FastAPI resolves rather than fighting it.
+anyio>=4.0
