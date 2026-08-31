@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { AdUnit } from '../../../components/adsense';
 import { ImageCarousel } from '../../../components/image-carousel';
 import { Newsletter } from '../../../components/newsletter';
 import { PageShell } from '../../../components/page-shell';
@@ -229,9 +230,13 @@ export default async function ArticlePage({ params }: Props) {
 
           <ImageCarousel images={slides} alt={article.title} autoPlayMs={7000} />
 
+          <AdUnit format="auto" responsive />
+
           {/* Sanitised twice over — on save by the API, and again by
               `contentHtml` on the way out. */}
           <div className="article-body" dangerouslySetInnerHTML={{ __html: body }} />
+
+          <AdUnit format="auto" responsive />
 
           {sectionSlug && (
             <p className="article-tail">
@@ -245,6 +250,7 @@ export default async function ArticlePage({ params }: Props) {
         </article>
 
         <aside className="article-aside" aria-label="More stories">
+          <AdUnit format="rectangle" />
           <StoryList
             title="More in this category"
             stories={related.slice(0, 3)}

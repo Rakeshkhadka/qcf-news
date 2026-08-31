@@ -4,6 +4,8 @@ import '@fontsource/dm-mono/500.css';
 import '@fontsource-variable/source-serif-4/wght.css';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { AdSenseScript } from '../components/adsense';
+import { GoogleAnalytics } from '../components/google-analytics';
 import { MEDIA_BASE_URL } from '../lib/media';
 import {
   SITE,
@@ -45,6 +47,9 @@ export const metadata: Metadata = {
   authors: [{ name: `${SITE.name} Newsroom`, url: SITE_URL }],
   publisher: SITE.name,
   category: 'entertainment',
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+  },
   alternates: {
     canonical: '/',
     types: {
@@ -125,6 +130,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
+        <GoogleAnalytics />
+        <AdSenseScript />
         {/* Keyboard and screen-reader users skip the sticky header and the
             nav panel triggers; visible only once focused. */}
         <a className="skip-link" href="#main">
